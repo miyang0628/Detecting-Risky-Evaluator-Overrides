@@ -1,0 +1,21 @@
+# ── Core data handling ─────────────────────────────────────────────────────
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+pyarrow>=14.0        # parquet read/write
+
+# ── Machine learning ───────────────────────────────────────────────────────
+scikit-learn>=1.3
+xgboost>=2.0
+shap>=0.44
+
+# ── Statistical modelling ──────────────────────────────────────────────────
+statsmodels>=0.14    # Logit with p-values, confidence intervals
+
+# ── Visualisation ──────────────────────────────────────────────────────────
+matplotlib>=3.7
+seaborn>=0.12
+
+# ── Notebook utilities ─────────────────────────────────────────────────────
+joblib>=1.3          # model save/load
+ipykernel>=6.0       # Jupyter kernel
