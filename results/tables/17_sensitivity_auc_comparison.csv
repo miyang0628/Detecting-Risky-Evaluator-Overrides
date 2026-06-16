@@ -1,0 +1,4 @@
+Scenario,AUC_Logit,AUC_XGB,Delta_AUC
+Conservative,0.7191,0.9612,0.2422
+Base,0.7191,0.9612,0.2421
+Aggressive,0.7191,0.9617,0.2426

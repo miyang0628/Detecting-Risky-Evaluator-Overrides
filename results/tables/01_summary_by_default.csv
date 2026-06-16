@@ -1,0 +1,5 @@
+,net_profit_to_assets,net_profit_to_assets,net_profit_to_assets,total_liabilities_to_assets,total_liabilities_to_assets,total_liabilities_to_assets,working_capital_to_assets,working_capital_to_assets,working_capital_to_assets,cash_to_current_liabilities,cash_to_current_liabilities,cash_to_current_liabilities,ebit_to_assets,ebit_to_assets,ebit_to_assets,equity_to_assets,equity_to_assets,equity_to_assets
+,mean,median,std,mean,median,std,mean,median,std,mean,median,std,mean,median,std,mean,median,std
+default,,,,,,,,,,,,,,,,,,
+0,0.067,0.0528,0.1605,0.4993,0.4625,0.3254,0.2075,0.2035,0.3127,6.7044,0.4807,521.3714,0.0816,0.0632,0.1745,0.4823,0.5152,0.3257
+1,-0.0398,0.0035,0.205,0.7213,0.6684,0.4429,0.0174,0.0389,0.4063,-75.4876,-36.663,424.4615,-0.0305,0.0051,0.2167,0.257,0.3082,0.4499

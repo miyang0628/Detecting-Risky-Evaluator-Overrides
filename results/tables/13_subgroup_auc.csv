@@ -1,0 +1,4 @@
+override_direction,n,n_default,default_rate,ROC_AUC
+upgrade,6268,482,0.0769,0.9923
+downgrade,9012,243,0.027,0.9976
+none,28125,1366,0.0486,0.9947

@@ -1,0 +1,4 @@
+Scenario,Coefficient,OR,p_value
+Conservative,-0.0387,0.962,0.133
+Base,-0.0767,0.9261,0.0048
+Aggressive,-0.0692,0.9331,0.0174

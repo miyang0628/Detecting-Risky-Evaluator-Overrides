@@ -1,0 +1,15 @@
+feature,IV,strength
+pd_system,1.1862,Very strong
+grade_ordinal,1.1525,Very strong
+retained_earnings_to_assets,0.4761,Strong
+ebit_to_assets,0.4585,Strong
+net_profit_to_assets,0.4566,Strong
+book_value_equity_to_liabilities,0.3905,Strong
+equity_to_assets,0.3854,Strong
+total_liabilities_to_assets,0.3853,Strong
+current_assets_to_short_liabilities,0.3535,Strong
+working_capital_to_assets,0.3134,Strong
+cash_to_current_liabilities,0.2774,Medium
+grade_diff,0.1606,Medium
+sales_to_assets,0.1201,Medium
+override_flag,0.0,Useless
