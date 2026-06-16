@@ -22,7 +22,8 @@ This repository provides a fully reproducible pipeline that:
 2. Simulates the evaluator override process under regulatory constraints
 3. Quantifies the incremental default risk of upgrade overrides
 4. Builds an explainable early-warning ML model to flag risky overrides
-5. Validates robustness across multiple simulation scenarios
+5. Identifies financial signals overlooked in risky upgrade decisions
+6. Validates robustness across multiple simulation scenarios
 
 ---
 
@@ -34,6 +35,13 @@ This repository provides a fully reproducible pipeline that:
   (OR = 0.926, p = 0.005) after controlling for financial variables
 - Override-augmented XGBoost achieves **ROC-AUC = 0.995**
   (ΔAUC = +0.206 vs financial-only baseline)
+- **Risky upgrade cases** (upgraded → defaulted) exhibit disproportionately
+  high SHAP contributions from three financial distress signals:
+  interest coverage ratio (Attr27), quick ratio (Attr46),
+  and cost efficiency ratio (Attr58)
+- **Grade transitions originating from CCC** carry the highest residual
+  default risk: CCC → BB (19.6%) and CCC → B (17.4%), both far above
+  the upgrade-group average of 7.69%
 - Findings are **robust** across conservative, base, and aggressive
   simulation scenarios
 
@@ -76,7 +84,8 @@ credit_override_study/
 │   ├── NB07_shap_explainability.ipynb
 │   ├── NB08_evaluation.ipynb
 │   ├── NB09_sensitivity_analysis.ipynb
-│   └── NB10_robustness_summary.ipynb
+│   ├── NB10_robustness_summary.ipynb
+│   └── NB11_evaluator_pattern_analysis.ipynb
 ├── models/
 │   ├── logistic/
 │   └── xgboost/
@@ -105,6 +114,39 @@ credit_override_study/
 | NB08 | Final evaluation: ROC/PR curves, calibration, business impact |
 | NB09 | Sensitivity analysis across three simulation scenarios |
 | NB10 | Robustness summary and cross-scenario comparison |
+| NB11 | Evaluator pattern analysis: financial signals in risky upgrade cases |
+
+**Run order:** NB01 → NB02 → NB03 → NB04 → NB05 → NB06 → NB07 → NB08 → NB09 → NB10 → NB11
+
+> **Note:** NB11 depends on outputs from NB04 (`override_data.parquet`)
+> and NB06 (`xgb_override.pkl`). Run those notebooks first.
+
+---
+
+## NB11: Evaluator Pattern Analysis
+
+NB11 addresses the question: *"What financial signals are systematically
+present in risky upgrade cases but appear to be overlooked by evaluators?"*
+
+This notebook conducts three analyses:
+
+| Analysis | Question | Output |
+|----------|----------|--------|
+| A | Which financial signals concentrate in risky upgrades? | Fig 26 |
+| B | Which grade transitions carry the highest default risk? | Fig 27 |
+| C | How do financial profiles differ between risky and safe upgrades? | Fig 28 |
+
+**Key outputs:**
+- `results/figures/26_shap_risky_upgrade_top10.png`
+- `results/figures/27_grade_transition_default_rate.png`
+- `results/figures/28_financial_signal_comparison.png`
+- `results/tables/NB11_pattern_summary.csv`
+- `results/tables/NB11_transition_summary.csv`
+
+> **Important:** NB11 operates at the *firm level*, not the *evaluator level*.
+> It identifies portfolio-level outcome patterns associated with upgrade
+> overrides. It does not identify individual evaluator behaviour or attribute
+> override decisions to specific personnel.
 
 ---
 
@@ -144,28 +186,40 @@ statsmodels>=0.14  matplotlib>=3.7    seaborn>=0.12
 joblib>=1.3        pyarrow>=14.0      ipykernel>=6.0
 ```
 
-> **Note:** `xgboost==1.7.6` is required for SHAP compatibility.
-> XGBoost ≥ 2.0 produces a `base_score` format (`[5E-1]`) that
-> current SHAP versions cannot parse without a source-level patch
-> (applied automatically in NB07).
+> **Note on XGBoost version:** `xgboost==1.7.6` is pinned for SHAP
+> compatibility. XGBoost ≥ 2.0 stores `base_score` as `[5E-1]`, which
+> SHAP cannot parse without a source-level patch. NB07 and NB11 both
+> apply this patch automatically if a newer XGBoost version is detected.
 
 ---
 
 ## Reproducibility
 
 All random seeds are fixed (`numpy.random.seed(2024)`, `random_state=42`).
-Running notebooks in order (NB01 → NB10) produces identical results.
+Running notebooks in order (NB01 → NB11) produces identical results.
 
 ---
 
 ## Note on pd_system and Data Leakage
 
 `pd_system` (the system model's predicted probability of default) is included
-as a feature in NB05–NB08. This is intentional and does **not** constitute
-data leakage: in real-world credit rating workflows, evaluators have full
-access to the system-generated Pd score **before** making their override
-decision. Including `pd_system` therefore reflects the information set
-available at the time of the override, not future information.
+as a feature in NB05–NB08 and NB11. This is intentional and does **not**
+constitute data leakage: in real-world credit rating workflows, evaluators
+have full access to the system-generated Pd score **before** making their
+override decision. Including `pd_system` therefore reflects the information
+set available at the time of the override, not future information.
+
+---
+
+## Note on Analysis Level
+
+All analyses in this repository are conducted at the **firm level**
+(unit of observation: firm-year record). The findings describe
+portfolio-level outcome patterns — which types of firms, override
+directions, and grade transitions are associated with elevated default
+rates. The repository does **not** contain evaluator-level identifiers,
+qualitative override reasoning, or institutional context. Evaluator
+behaviour cannot be attributed or corrected from these analyses alone.
 
 ---
 
