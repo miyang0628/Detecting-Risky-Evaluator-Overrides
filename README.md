@@ -1,4 +1,4 @@
-# Detecting Risky Evaluator Overrides in Corporate Credit Rating
+# Design-Induced Selection in Simulated Evaluator Overrides: A Cautionary Analysis and Validation Protocol
 
 Replication code for:
 
@@ -9,41 +9,63 @@ Replication code for:
 
 ## Overview
 
-Credit rating agencies are legally required to have human evaluators review
-and potentially override system-generated credit grades. While this two-stage
-process is mandated by regulation, it introduces a systematic risk: evaluators
-tend to upgrade borderline or distressed firms based on qualitative judgment,
-and those upgraded firms subsequently default at higher rates than the assigned
-grade implies.
+Credit rating agencies operating under regulatory frameworks are legally
+required to have human evaluators review and potentially override
+system-generated credit grades. Practitioners observe that evaluators tend to
+upgrade borderline or distressed firms on qualitative grounds. A natural
+question is whether such upgrade overrides carry incremental default risk.
 
-This repository provides a fully reproducible pipeline that:
+Because proprietary evaluator override records are rarely accessible, a common
+strategy is to **simulate** the override step on a public dataset. This
+repository shows that such simulations are prone to a **design-induced
+selection effect**: when upgrade probability is tied to the system grade — which
+is itself a transform of the system-estimated default probability
+(`pd_system`) — the simulated upgrade group mechanically over-samples
+high-risk firms, and the "upgrade risk" finding is largely an artifact of the
+simulation rules rather than evidence of evaluator behaviour.
+
+Rather than claiming an empirical finding, this repository provides a fully
+reproducible pipeline that:
 
 1. Trains a system-level credit grading model on financial variables
-2. Simulates the evaluator override process under regulatory constraints
-3. Quantifies the incremental default risk of upgrade overrides
-4. Builds an explainable early-warning ML model to flag risky overrides
-5. Identifies financial signals overlooked in risky upgrade decisions
-6. Validates robustness across multiple simulation scenarios
+2. Simulates the override step under **three alternative data-generating
+   mechanisms (DGMs)** that differ only in how upgrade probability is assigned
+3. Quantifies how much of the apparent upgrade-risk effect is induced by the
+   simulation design, using **repeated simulations** and **parameter
+   sensitivity analysis**
+4. Isolates the **pure incremental contribution** of override features under a
+   leakage-aware, single-model comparison
+5. Provides a **validation protocol** and documents the limitations that make
+   real evaluator-level data indispensable for any causal claim
 
 ---
 
 ## Key Findings
 
-- Upgrade overrides are associated with a **58% higher default rate**
-  (7.69% vs 4.86% for non-overridden cases)
-- A one-notch upgrade increases the odds of default by **7.98%**
-  (OR = 0.926, p = 0.005) after controlling for financial variables
-- Override-augmented XGBoost achieves **ROC-AUC = 0.995**
-  (ΔAUC = +0.206 vs financial-only baseline)
-- **Risky upgrade cases** (upgraded → defaulted) exhibit disproportionately
-  high SHAP contributions from three financial distress signals:
-  interest coverage ratio (Attr27), quick ratio (Attr46),
-  and cost efficiency ratio (Attr58)
-- **Grade transitions originating from CCC** carry the highest residual
-  default risk: CCC → BB (19.6%) and CCC → B (17.4%), both far above
-  the upgrade-group average of 7.69%
-- Findings are **robust** across conservative, base, and aggressive
-  simulation scenarios
+- **The upgrade-risk effect is design-induced.** Under the naive DGM (upgrade
+  probability driven by system grade), upgraded firms show a default-rate gap
+  of **+3.2 percentage points** over non-overridden firms. When upgrade
+  probability is instead driven by a signal near-orthogonal to `pd_system`,
+  the gap collapses to **+0.6 pp (risk-neutral driver)** and **+0.1 pp
+  (size driver)** — roughly **80% of the naive effect disappears**.
+- **The residual effect is not statistically distinguishable from zero.**
+  Across **500 replications**, the upgrade-vs-none default-rate gap has a 95%
+  interval that **excludes zero only under the naive DGM**; both
+  pd-independent DGMs include zero. The `grade_diff` odds ratio (controlling
+  for `pd_system`) includes 1.0 under **all** DGMs.
+- **The conclusion is robust to parameter choice.** Across a grid of
+  override rates (0.20–0.50) and upgrade-probability spreads (0.50–0.95), the
+  naive and pd-independent DGMs **never overlap**: naive gap ≥ 0.027 everywhere,
+  pd-independent gap ≤ 0.006 everywhere.
+- **Override features add almost nothing once the model is held fixed.** Under
+  a single XGBoost model with identical hyperparameters, adding override
+  features to the financial baseline changes ROC-AUC by **+0.0008**
+  (0.9603 → 0.9611). The large ΔAUC reported in earlier drafts reflected a
+  **logistic-vs-XGBoost model change**, not the override features.
+- **Cross-validation folds are balanced** (default rate 0.0482 in every fold),
+  but firm-level and temporal leakage **cannot be fully excluded** because the
+  public dataset contains no firm identifier and `year_horizon` encodes a
+  forecast horizon rather than a calendar year.
 
 ---
 
@@ -58,6 +80,8 @@ This repository provides a fully reproducible pipeline that:
 - 43,405 firm-year observations across 5 forecast horizons
 - 64 financial features + binary bankruptcy label
 - Overall default rate: 4.82%
+- **No firm identifier is available**, so records of the same firm across
+  forecast horizons cannot be grouped. This is documented as a limitation.
 
 **Download:**
 ```
@@ -78,17 +102,15 @@ credit_override_study/
 │   ├── NB01_data_preparation.ipynb
 │   ├── NB02_eda.ipynb
 │   ├── NB03_grade_assignment.ipynb
-│   ├── NB04_override_simulation.ipynb
+│   ├── NB04_diag_correlation.ipynb          ← driver-variable diagnostic
+│   ├── NB04b_override_simulation_independent.ipynb   ← three DGMs
+│   ├── NB04c_override_simulation_replications.ipynb  ← 500-seed inference
+│   ├── NB04d_override_simulation_sensitivity.ipynb   ← parameter grid
 │   ├── NB05_statistical_model.ipynb
 │   ├── NB06_ml_model.ipynb
-│   ├── NB07_shap_explainability.ipynb
-│   ├── NB08_evaluation.ipynb
-│   ├── NB09_sensitivity_analysis.ipynb
-│   ├── NB10_robustness_summary.ipynb
-│   └── NB11_evaluator_pattern_analysis.ipynb
+│   ├── NB06b_validation_protocol.ipynb      ← leakage-aware validation
+│   └── NB07_shap_explainability.ipynb
 ├── models/
-│   ├── logistic/
-│   └── xgboost/
 ├── results/
 │   ├── figures/
 │   └── tables/
@@ -107,132 +129,96 @@ credit_override_study/
 | NB01 | Load `.arff` files, clean, impute, save master parquet |
 | NB02 | Exploratory data analysis: class balance, distributions, correlations |
 | NB03 | Logistic regression → system Pd → quantile-based grade assignment |
-| NB04 | Evaluator override simulation (grade-boundary optimistic bias) |
-| NB05 | WoE / Information Value + statsmodels logit with p-values |
-| NB06 | XGBoost (5-fold CV) with override-augmented features |
-| NB07 | SHAP: global summary, dependence plot, individual force plots |
-| NB08 | Final evaluation: ROC/PR curves, calibration, business impact |
-| NB09 | Sensitivity analysis across three simulation scenarios |
-| NB10 | Robustness summary and cross-scenario comparison |
-| NB11 | Evaluator pattern analysis: financial signals in risky upgrade cases |
+| NB04_diag | Correlation diagnostic: find drivers near-orthogonal to `pd_system` |
+| NB04b | Override simulation under three DGMs (naive / b1 / b2) |
+| NB04c | Repeated simulations (500 seeds) with percentile confidence intervals |
+| NB04d | Parameter sensitivity analysis over an override-rate × spread grid |
+| NB05 | WoE / Information Value + statsmodels logit (per-DGM) |
+| NB06 | XGBoost baseline model |
+| NB06b | Leakage-aware validation: single-model feature-set comparison, fold balance, horizon-out check |
+| NB07 | SHAP explainability (illustrative; interpreted as within-simulation only) |
 
-**Run order:** NB01 → NB02 → NB03 → NB04 → NB05 → NB06 → NB07 → NB08 → NB09 → NB10 → NB11
-
-> **Note:** NB11 depends on outputs from NB04 (`override_data.parquet`)
-> and NB06 (`xgb_override.pkl`). Run those notebooks first.
+**Run order:** NB01 → NB02 → NB03 → NB04_diag → NB04b → NB04c → NB04d →
+NB05 → NB06 → NB06b → NB07
 
 ---
 
-## NB11: Evaluator Pattern Analysis
+## Data-Generating Mechanisms
 
-NB11 addresses the question: *"What financial signals are systematically
-present in risky upgrade cases but appear to be overlooked by evaluators?"*
+The three DGMs differ **only** in how per-firm upgrade probability is assigned;
+everything downstream (magnitude, direction, `grade_diff`) is identical, so the
+mechanisms are strictly comparable.
 
-This notebook conducts three analyses:
+| DGM | Upgrade driver | Relation to `pd_system` | Role |
+|-----|----------------|-------------------------|------|
+| `naive` | `system_grade` (quantile of `pd_system`) | Strong (by construction) | Warning baseline — reproduces the circular design |
+| `b1` | `Attr43` | Near-zero (\|ρ\| ≈ 0.03) | Risk-neutral upgrades; selection ≈ random w.r.t. risk |
+| `b2` | `Attr29` (firm size) | Low (\|ρ\| ≈ 0.19), weak link to default | Risk-informed but pd-independent upgrades |
 
-| Analysis | Question | Output |
-|----------|----------|--------|
-| A | Which financial signals concentrate in risky upgrades? | Fig 26 |
-| B | Which grade transitions carry the highest default risk? | Fig 27 |
-| C | How do financial profiles differ between risky and safe upgrades? | Fig 28 |
-
-**Key outputs:**
-- `results/figures/26_shap_risky_upgrade_top10.png`
-- `results/figures/27_grade_transition_default_rate.png`
-- `results/figures/28_financial_signal_comparison.png`
-- `results/tables/NB11_pattern_summary.csv`
-- `results/tables/NB11_transition_summary.csv`
-
-> **Important:** NB11 operates at the *firm level*, not the *evaluator level*.
-> It identifies portfolio-level outcome patterns associated with upgrade
-> overrides. It does not identify individual evaluator behaviour or attribute
-> override decisions to specific personnel.
+Outputs:
+`data/processed/override_data_naive.parquet`, `…_b1.parquet`, `…_b2.parquet`
 
 ---
 
-## Environment Setup (Windows / Anaconda)
+## Sign Convention
 
-```bash
-# 1. Create environment
-conda create -n credit_override_env python=3.10 -y
+`grade_diff = final_ordinal − system_ordinal`, where a lower ordinal is a
+better grade. Therefore:
 
-# 2. Activate
-conda activate credit_override_env
+- **negative `grade_diff` = upgrade**
+- **positive `grade_diff` = downgrade**
 
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Register Jupyter kernel
-python -m ipykernel install --user \
-    --name credit_override_env \
-    --display-name "credit_override"
-
-# 5. Launch Jupyter
-cd path\to\credit_override_study
-jupyter notebook
-```
-
-**Important:** After opening a notebook, select kernel →
-**credit_override** before running.
-
----
-
-## Dependencies
-
-```
-numpy>=1.24        pandas>=2.0        scipy>=1.10
-scikit-learn>=1.3  xgboost==1.7.6     shap>=0.44
-statsmodels>=0.14  matplotlib>=3.7    seaborn>=0.12
-joblib>=1.3        pyarrow>=14.0      ipykernel>=6.0
-```
-
-> **Note on XGBoost version:** `xgboost==1.7.6` is pinned for SHAP
-> compatibility. XGBoost ≥ 2.0 stores `base_score` as `[5E-1]`, which
-> SHAP cannot parse without a source-level patch. NB07 and NB11 both
-> apply this patch automatically if a newer XGBoost version is detected.
+This convention is applied consistently in the code and in the manuscript.
 
 ---
 
 ## Reproducibility
 
-All random seeds are fixed (`numpy.random.seed(2024)`, `random_state=42`).
-Running notebooks in order (NB01 → NB11) produces identical results.
+Random seeds are fixed throughout (`numpy.random.default_rng` with explicit
+per-replication seeds; `random_state=42` for models). Running the notebooks in
+order reproduces all reported tables and figures, including the 500-replication
+intervals and the sensitivity grid.
 
 ---
 
-## Note on pd_system and Data Leakage
+## Note on pd_system
 
-`pd_system` (the system model's predicted probability of default) is included
-as a feature in NB05–NB08 and NB11. This is intentional and does **not**
-constitute data leakage: in real-world credit rating workflows, evaluators
-have full access to the system-generated Pd score **before** making their
-override decision. Including `pd_system` therefore reflects the information
-set available at the time of the override, not future information.
+`pd_system` is included as a feature where appropriate, on the grounds that
+evaluators observe the system score before overriding. However, this
+repository explicitly **does not** rely on `pd_system` to claim override-feature
+importance. NB06b reports a feature-set comparison **excluding** `pd_system`
+precisely to isolate the incremental contribution of override features, which
+is found to be negligible.
 
 ---
 
-## Note on Analysis Level
+## Note on Analysis Level and Scope
 
-All analyses in this repository are conducted at the **firm level**
-(unit of observation: firm-year record). The findings describe
-portfolio-level outcome patterns — which types of firms, override
-directions, and grade transitions are associated with elevated default
-rates. The repository does **not** contain evaluator-level identifiers,
-qualitative override reasoning, or institutional context. Evaluator
-behaviour cannot be attributed or corrected from these analyses alone.
+All analyses are conducted at the **firm level** (unit: firm-year record) and
+on **simulated** override decisions. The repository does **not** contain
+evaluator-level identifiers, qualitative override reasoning, or institutional
+context. Consequently:
+
+- It **cannot** demonstrate that real evaluators overlook specific financial
+  signals.
+- SHAP results describe how the model fits the **simulated** data, not real
+  evaluator behaviour.
+- No deployment, evaluator-training, or committee-intervention claim is made.
+
+The central methodological conclusion is that **valid empirical assessment of
+override risk requires actual rating-override records**; simulation alone, once
+design circularity is removed, cannot establish the effect.
 
 ---
 
 ## Citation
 
-If you use this code, please cite:
-
 ```bibtex
-@article{anonymous2025override,
+@article{anonymous2026override,
   title   = {[Title withheld for blind review]},
   author  = {Anonymous},
   journal = {[Journal withheld for blind review]},
-  year    = {2025},
+  year    = {2026},
 }
 ```
 
